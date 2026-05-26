@@ -148,7 +148,7 @@ if __name__ == "__main__":
     tgt_net = ptan.agent.TargetNet(net)
     print(net)
 
-    if args.params.startswith('egreedy'):
+    if args.params.startswith('egreedy') or args.params == 'shaped':
         selector = ptan.actions.EpsilonGreedyActionSelector(epsilon=params.epsilon_start)
         epsilon_tracker = common.EpsilonTracker(selector, params)
         training_enabled = not params.eps_decay_trigger
