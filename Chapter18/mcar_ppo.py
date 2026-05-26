@@ -7,6 +7,7 @@ import random
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+from pathlib import Path
 
 from ignite.engine import Engine
 from types import SimpleNamespace
@@ -101,6 +102,11 @@ def counts_hash(obs):
     return tuple(map(lambda v: round(v, 3), r))
 
 
+def make_checkpoint_path(save_dir: Path, params_name: str, run_name: str) -> Path:
+    safe_run_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in run_name)
+    return save_dir / f"mcar_ppo_{params_name}_{safe_run_name}_best.dat"
+
+
 if __name__ == "__main__":
     random.seed(common.SEED)
     torch.manual_seed(common.SEED)
@@ -108,8 +114,13 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--name", required=True, help="Run name")
     parser.add_argument("-p", "--params", default='ppo', choices=list(HYPERPARAMS.keys()),
                         help="Parameters, default=ppo")
+    parser.add_argument("--save-dir", default="saves", help="Directory to store best model checkpoints")
     args = parser.parse_args()
     params = HYPERPARAMS[args.params]
+    save_dir = Path(args.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_path = make_checkpoint_path(save_dir, args.params, args.name)
+    best_test_reward = float("-inf")
 
     env = gym.make(params.env_name)
     test_env = gym.make(params.env_name)
@@ -208,6 +219,24 @@ if __name__ == "__main__":
         engine.state.metrics['test_reward'] = reward
         engine.state.metrics['avg_test_reward'] = test_reward_avg
         engine.state.metrics['test_steps'] = steps
+        global best_test_reward
+        if test_reward_avg > best_test_reward:
+            best_test_reward = test_reward_avg
+            torch.save({
+                "algo": "ppo",
+                "params": args.params,
+                "env_name": params.env_name,
+                "obs_size": env.observation_space.shape[0],
+                "n_actions": env.action_space.n,
+                "state_dict": net.state_dict(),
+                "best_avg_test_reward": best_test_reward,
+                "test_reward": reward,
+                "test_steps": steps,
+                "iteration": engine.state.iteration,
+            }, save_path)
+            print("Saved best PPO checkpoint to %s, avg reward %.3f" % (
+                save_path, best_test_reward
+            ))
 
         if test_reward_avg > params.stop_test_reward:
             print("Reward boundary has crossed, stopping training. Contgrats!")
