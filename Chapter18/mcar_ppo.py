@@ -76,6 +76,24 @@ HYPERPARAMS = {
         'entropy_beta':     0.1,
         'counts_reward_scale': 0.5,
     }),
+    'shaped': SimpleNamespace(**{
+        'env_name':         "MountainCar-v0",
+        'stop_reward':      None,
+        'stop_test_reward': -130.0,
+        'run_name':         'shaped',
+        'actor_lr':         1e-4,
+        'critic_lr':        1e-4,
+        'gamma':            0.99,
+        'ppo_trajectory':   2049,
+        'ppo_epoches':      10,
+        'ppo_eps':          0.2,
+        'batch_size':       32,
+        'gae_lambda':       0.95,
+        'entropy_beta':     0.1,
+        'shaped_position_scale': 1.0,
+        'shaped_velocity_scale': 100.0,
+        'shaped_goal_bonus': 100.0,
+    }),
 
     'distill': SimpleNamespace(**{
         'env_name': "MountainCar-v0",
@@ -107,6 +125,20 @@ def make_checkpoint_path(save_dir: Path, params_name: str, run_name: str) -> Pat
     return save_dir / f"mcar_ppo_{params_name}_{safe_run_name}_best.dat"
 
 
+def wrap_training_env(env: gym.Env, params_name: str, params: SimpleNamespace) -> gym.Env:
+    if params_name == 'counts':
+        return common.PseudoCountRewardWrapper(
+            env, reward_scale=params.counts_reward_scale, hash_function=counts_hash)
+    if params_name == 'shaped':
+        return common.MountainCarShapedRewardWrapper(
+            env,
+            position_scale=params.shaped_position_scale,
+            velocity_scale=params.shaped_velocity_scale,
+            goal_bonus=params.shaped_goal_bonus,
+        )
+    return env
+
+
 if __name__ == "__main__":
     random.seed(common.SEED)
     torch.manual_seed(common.SEED)
@@ -122,11 +154,8 @@ if __name__ == "__main__":
     save_path = make_checkpoint_path(save_dir, args.params, args.name)
     best_test_reward = float("-inf")
 
-    env = gym.make(params.env_name)
+    env = wrap_training_env(gym.make(params.env_name), args.params, params)
     test_env = gym.make(params.env_name)
-    if args.params == 'counts':
-        env = common.PseudoCountRewardWrapper(env, reward_scale=params.counts_reward_scale,
-                                              hash_function=counts_hash)
     net_distill = None
     if args.params == 'distill':
         net_distill = ppo.MountainCarNetDistillery(env.observation_space.shape[0])

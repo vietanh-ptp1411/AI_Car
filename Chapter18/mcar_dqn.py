@@ -75,6 +75,25 @@ HYPERPARAMS = {
         'counts_reward_scale': 0.5,
         'eps_decay_trigger': False,
     }),
+    'shaped': SimpleNamespace(**{
+        'env_name':         "MountainCar-v0",
+        'stop_reward':      None,
+        'stop_test_reward': -130.0,
+        'run_name':         'shaped',
+        'replay_size':      100000,
+        'replay_initial':   1000,
+        'target_net_sync':  500,
+        'epsilon_frames':   50000,
+        'epsilon_start':    1.0,
+        'epsilon_final':    0.02,
+        'learning_rate':    0.0001,
+        'gamma':            0.99,
+        'batch_size':       32,
+        'eps_decay_trigger': False,
+        'shaped_position_scale': 1.0,
+        'shaped_velocity_scale': 100.0,
+        'shaped_goal_bonus': 100.0,
+    }),
 }
 
 N_STEPS = 4
@@ -88,6 +107,20 @@ def counts_hash(obs: np.ndarray):
 def make_checkpoint_path(save_dir: Path, params_name: str, run_name: str) -> Path:
     safe_run_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in run_name)
     return save_dir / f"mcar_dqn_{params_name}_{safe_run_name}_best.dat"
+
+
+def wrap_training_env(env: gym.Env, params_name: str, params: SimpleNamespace) -> gym.Env:
+    if params_name == 'counts':
+        return common.PseudoCountRewardWrapper(
+            env, reward_scale=params.counts_reward_scale, hash_function=counts_hash)
+    if params_name == 'shaped':
+        return common.MountainCarShapedRewardWrapper(
+            env,
+            position_scale=params.shaped_position_scale,
+            velocity_scale=params.shaped_velocity_scale,
+            goal_bonus=params.shaped_goal_bonus,
+        )
+    return env
 
 
 if __name__ == "__main__":
@@ -106,11 +139,9 @@ if __name__ == "__main__":
     save_path = make_checkpoint_path(save_dir, args.params, args.name)
     best_test_reward = float("-inf")
 
-    env = gym.make(params.env_name)
+    env = wrap_training_env(gym.make(params.env_name), args.params, params)
     test_env = gym.make(params.env_name)
-    if args.params == 'counts':
-        env = common.PseudoCountRewardWrapper(env, reward_scale=params.counts_reward_scale, hash_function=counts_hash)
-    if args.params.startswith("egreedy") or args.params == 'counts':
+    if args.params.startswith("egreedy") or args.params in ('counts', 'shaped'):
         net = dqn_extra.MountainCarBaseDQN(env.observation_space.shape[0], env.action_space.n)
     elif args.params == 'noisynet':
         net = dqn_extra.MountainCarNoisyNetDQN(env.observation_space.shape[0], env.action_space.n)
@@ -155,7 +186,7 @@ if __name__ == "__main__":
         if engine.state.iteration % params.target_net_sync == 0:
             tgt_net.sync()
 
-        if args.params.startswith("egreedy"):
+        if args.params.startswith("egreedy") or args.params == 'shaped':
             epsilon_tracker.frame(engine.state.iteration - epsilon_tracker_frame)
             res['epsilon'] = selector.epsilon
         # reset noise every training step, this is fine in off-policy method

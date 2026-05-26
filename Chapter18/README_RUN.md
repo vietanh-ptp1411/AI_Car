@@ -43,6 +43,7 @@ Other DQN variants:
 python Chapter18\mcar_dqn.py -n dqn_long -p egreedy-long
 python Chapter18\mcar_dqn.py -n dqn_noisy -p noisynet
 python Chapter18\mcar_dqn.py -n dqn_counts -p counts
+python Chapter18\mcar_dqn.py -n dqn_shaped -p shaped
 ```
 
 The best checkpoint is saved automatically under `saves/`, for example:
@@ -62,6 +63,7 @@ Other PPO variants:
 ```powershell
 python Chapter18\mcar_ppo.py -n ppo_noisy -p noisynet
 python Chapter18\mcar_ppo.py -n ppo_counts -p counts
+python Chapter18\mcar_ppo.py -n ppo_shaped -p shaped
 python Chapter18\mcar_ppo.py -n ppo_distill -p distill
 ```
 
@@ -90,6 +92,11 @@ Important metrics:
 - `train/test_reward`: reward from the latest evaluation episode.
 - `train/test_steps`: how many steps the evaluation episode lasted.
 - `train/avg_loss`: average training loss.
+
+For `counts` and `shaped` runs, episode rewards are measured on the modified
+training environment. Use `train/avg_test_reward` and `train/test_steps` for the
+real MountainCar score because evaluation still uses the original environment.
+If `test_steps` stays at `200`, the car has not reached the flag yet.
 
 ## 6. Play a trained model
 
@@ -125,7 +132,7 @@ The generated `.mp4` files are saved inside the selected `videos/` subfolder.
 
 ## 8. Suggested experiment set
 
-For the project report and demo, train at least these two runs:
+For the project report, train at least these two baseline runs:
 
 ```powershell
 python Chapter18\mcar_dqn.py -n dqn_run -p egreedy
@@ -133,3 +140,13 @@ python Chapter18\mcar_ppo.py -n ppo_run -p ppo
 ```
 
 Then compare them in TensorBoard using `train/avg_test_reward`.
+
+For a practical demo, train one exploration-aided run and one shaped-reward run:
+
+```powershell
+python Chapter18\mcar_ppo.py -n ppo_counts -p counts
+python Chapter18\mcar_ppo.py -n ppo_shaped -p shaped
+```
+
+Use the checkpoint whose `train/avg_test_reward` is best and whose
+`train/test_steps` drops below `200`.

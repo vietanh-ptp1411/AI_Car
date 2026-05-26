@@ -202,6 +202,32 @@ class PseudoCountRewardWrapper(gym.Wrapper):
         return np.sqrt(1/self.counts[h])
 
 
+class MountainCarShapedRewardWrapper(gym.Wrapper):
+    """
+    Adds dense progress rewards for faster MountainCar training.
+
+    The original MountainCar reward is sparse: the agent receives -1 on every
+    step until it reaches the goal. This wrapper is used only for training; test
+    episodes still run on the original environment.
+    """
+    def __init__(self, env: gym.Env, position_scale: float = 1.0,
+                 velocity_scale: float = 100.0, goal_bonus: float = 100.0):
+        super(MountainCarShapedRewardWrapper, self).__init__(env)
+        self.position_scale = position_scale
+        self.velocity_scale = velocity_scale
+        self.goal_bonus = goal_bonus
+
+    def step(self, action):
+        obs, reward, done, is_tr, info = self.env.step(action)
+        position, velocity = obs
+        shaped_reward = reward
+        shaped_reward += self.position_scale * (position + 0.5)
+        shaped_reward += self.velocity_scale * abs(velocity)
+        if done:
+            shaped_reward += self.goal_bonus
+        return obs, shaped_reward, done, is_tr, info
+
+
 class NetworkDistillationRewardWrapper(gym.Wrapper):
     def __init__(self, env, reward_callable, reward_scale: float = 1.0, sum_rewards: bool = True):
         super(NetworkDistillationRewardWrapper, self).__init__(env)
